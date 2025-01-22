@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# System Health Check Script: Checks disk space, memory usage, running services, and system updates
+
+# Variables
+HEALTH_REPORT="$HOME/system_health_report.txt"
+LOG_FILE="$HOME/health_check.log"
+
+# Function to log messages
+log_message() {
+    local message="$1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $message" >> "$LOG_FILE"
+}
+
+# Function to check disk space
+check_disk_space() {
+    log_message "Checking disk space..."
+    local disk_usage=$(df -h / | tail -n 1 | awk '{print $5}')
+    local disk_threshold="80%" # Warning if disk usage exceeds 80%
+
+    echo "Disk Space Usage:"
+    echo "-------------------"
+    echo "Disk Usage: $disk_usage"
+    if [[ "$disk_usage" > "$disk_threshold" ]]; then
+        echo "WARNING: Disk usage exceeds $disk_threshold. Consider cleaning up space."
+        log_message "WARNING: Disk usage exceeds $disk_threshold."
+    else
+        echo "Disk usage is within acceptable limits."
+    fi
+    echo ""
+}
+
+# Function to check memory usage
+check_memory_usage() {
+    log_message "Checking memory usage..."
+    local mem_usage=$(free -h | grep Mem | awk '{print $3 "/" $2}')
+    local mem_threshold="75%"  # Warning if memory usage exceeds 75%
+
+    echo "Memory Usage:"
+    echo "--------------"
+    echo "Memory Used: $mem_usage"
+    if [[ "$mem_usage" > "$mem_threshold" ]]; then
+        echo "WARNING: Memory usage exceeds $mem_threshold. Consider closing unused applications or adding more RAM."
+        log_message "WARNING: Memory usage exceeds $mem_threshold."
+    else
+        echo "Memory usage is within acceptable limits."
+    fi
+    echo ""
+}
+
+# Function to check running services
+check_services() {
+    log_message "Checking running services..."
+    local services=("apache2" "mysql" "sshd")
+    local inactive_services=()
+
+    echo "Running Services:"
+    echo "-----------------"
+    for service in "${services[@]}"; do
+        if systemctl is-active --quiet "$service"; then
+            echo "$service: Active"
+        else
+            echo "$service: Inactive"
+            inactive_services+=("$service")
+            log_message "SERVICE ALERT: $service is not running."
+        fi
+    done
+
+    if [[ ${#inactive_services[@]} -gt 0 ]]; then
+        echo "WARNING: The following services are inactive: ${inactive_services[*]}"
+    else
+        echo "All specified services are running."
+    fi
+    echo ""
+}
+
+# Function to check recent system updates
+check_updates() {
+    log_message "Checking for system updates..."
+    local updates_available=$(apt list --upgradable 2>/dev/null | wc -l)
+    
+    echo "Recent System Updates:"
+    echo "-----------------------"
+    if [[ "$updates_available" -gt 1 ]]; then
+        echo "WARNING: There are $((updates_available-1)) packages that can be upgraded."
+        log_message "WARNING: There are $((updates_available-1)) packages available for upgrade."
+    else
+        echo "Your system is up to date."
+    fi
+    echo ""
+}
+
+# Function to generate health report
+generate_report() {
+    echo "System Health Report - $(date)" > "$HEALTH_REPORT"
+    echo "----------------------------" >> "$HEALTH_REPORT"
+    check_disk_space >> "$HEALTH_REPORT"
+    check_memory_usage >> "$HEALTH_REPORT"
+    check_services >> "$HEALTH_REPORT"
+    check_updates >> "$HEALTH_REPORT"
+
+    echo "Health report generated at $HEALTH_REPORT"
+    log_message "Health report generated at $HEALTH_REPORT"
+}
+
+# Main Script Execution
+echo "Performing system health check..."
+generate_report
+echo "System health check complete. Please review the health report at $HEALTH_REPORT"
+log_message "System health check completed."
